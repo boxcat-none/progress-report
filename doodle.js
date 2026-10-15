@@ -713,7 +713,19 @@
 
     // ---------- 滑鼠 / 觸控 / Apple Pencil (Pointer Events) ----------
     let activeId = null;         // 目前負責畫圖的那支筆 / 手指，其他指標一律忽略（防手掌誤觸）
-    let fingerScroll = null;     // 「只用筆畫」模式下，手指拖曳改成捲動網頁 {id, x, y}
+    let fingerScroll = null;     // 「只用筆畫」模式下，手指拖曳改成捲動網頁 {id, x, y}（非 iPad 時才用）
+
+    // iPad / iPhone：「只用筆畫」時，手指交給 Safari 原生捲動和雙指縮放，只有 Apple Pencil 拿來畫。
+    // （以前是用程式 scrollBy 模擬手指捲動，雙指滑動時會和 Safari 自己的手勢互相搶，
+    //   造成網頁抖動、往回跳、塗鴉跟著晃）
+    // 判斷 Pencil 靠 touch 事件的 touchType === 'stylus'，這是 iOS Safari 才有的屬性。
+    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);   // iPadOS 會偽裝成 Mac
+    const nativeFingerScroll = () => isIOS && penOnlyInput.checked;
+    function syncTouchAction() {
+      canvas.style.touchAction = nativeFingerScroll() ? 'pan-x pan-y pinch-zoom' : '';
+    }
+    penOnlyInput.addEventListener('change', syncTouchAction);
 
     // 筆的壓力 (0~1) 做一點平滑，避免線寬抖動
     function pressureOf(ev, prev) {
@@ -725,9 +737,11 @@
       if (e.button !== 0) return;
 
       // 偵測到 Apple Pencil：自動切到「只用筆畫」，之後手指只負責捲動
-      if (e.pointerType === 'pen' && !penOnlyInput.checked) penOnlyInput.checked = true;
+      if (e.pointerType === 'pen' && !penOnlyInput.checked) { penOnlyInput.checked = true; syncTouchAction(); }
       if (e.pointerType === 'touch' && penOnlyInput.checked) {
-        if (!fingerScroll && !dragging) fingerScroll = { id: e.pointerId, x: e.clientX, y: e.clientY };
+        // iPad：瀏覽器自己會捲動，這裡什麼都不做；其他裝置才用程式模擬捲動
+        if (!nativeFingerScroll() && !fingerScroll && !dragging)
+          fingerScroll = { id: e.pointerId, x: e.clientX, y: e.clientY };
         return;
       }
       if (dragging) return;      // 已經在畫了 → 第二個觸點（例如手掌）不理它
@@ -854,9 +868,13 @@
     canvas.addEventListener('pointercancel', endDrag);
     canvas.addEventListener('pointerleave', e => { if (!dragging) { eraserPos = null; render(); } });
 
-    // iPad Safari：擋掉畫布上的雙擊縮放、長按放大鏡與選字
+    // iPad Safari：擋掉畫布上的雙擊縮放、長按放大鏡與選字。
+    // 但「只用筆畫」時，純手指的觸控不擋，讓 Safari 原生捲動 / 縮放；有 Apple Pencil 參與才擋。
     for (const t of ['touchstart', 'touchmove'])
-      canvas.addEventListener(t, e => e.preventDefault(), { passive: false });
+      canvas.addEventListener(t, e => {
+        if (nativeFingerScroll() && ![...e.touches].some(tc => tc.touchType === 'stylus')) return;
+        e.preventDefault();
+      }, { passive: false });
 
     // 從上一個位置到目前位置沿路擦除，滑鼠移動很快時也不會漏掉中間的線
     function eraseAlong(from, to) {
