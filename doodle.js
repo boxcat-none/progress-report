@@ -77,6 +77,7 @@
     box-shadow: 0 4px 12px rgba(0,0,0,.2); cursor: pointer;
     touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none;
   }
+  #wd-handle:not(.wd-show) { box-shadow: none; }   /* 藏起來時陰影會露出一條線，一起拿掉 */
   #wd-handle.wd-show { transform: translate(-50%, 0); }
   #wd-handle.wd-bottom { top: auto; bottom: 0; border-radius: 12px 12px 0 0; transform: translate(-50%, 110%); }
   #wd-handle.wd-bottom.wd-show { transform: translate(-50%, 0); }
@@ -111,7 +112,8 @@
   body.wd-drawing { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 
   /* 塗鴉層：覆蓋整個視窗 */
-  #wd-board { position: fixed; inset: 0; z-index: 2147483000; touch-action: none;
+  /* 大小由程式設定（高度可能比視窗高，見 resize()），所以只固定左上角 */
+  #wd-board { position: fixed; top: 0; left: 0; z-index: 2147483000; touch-action: none;
            -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   #wd-board.wd-passthrough { pointer-events: none; }   /* 瀏覽模式：滑鼠穿透到網頁 */
   #wd-board.wd-pen    { cursor: crosshair; }
@@ -273,17 +275,35 @@
     };
 
     // ---------- 畫布尺寸 (支援高 DPI) ----------
+    // iPad / iPhone 捲動時網址列會伸縮，innerHeight 一直變、resize 事件連續觸發。
+    // 如果每次都重設畫布大小，就會反覆重新配置一大塊畫布記憶體（iPad 約 15MB），
+    // Safari 記憶體吃緊時會先丟掉網頁內容 → 整頁閃一下空白。
+    // 所以：寬度沒變時，畫布高度只增不減；尺寸真的變了才重新配置。
+    let canvasW = 0, canvasH = 0, canvasDpr = 0;
     function resize() {
       detectScroller();          // 視窗大小改變可能讓「誰在捲動」改變
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = innerWidth * dpr;
-      canvas.height = innerHeight * dpr;
-      canvas.style.width = innerWidth + 'px';
-      canvas.style.height = innerHeight + 'px';
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const w = innerWidth;
+      const h = (w === canvasW && dpr === canvasDpr) ? Math.max(canvasH, innerHeight) : innerHeight;
+      if (w !== canvasW || h !== canvasH || dpr !== canvasDpr) {
+        canvasW = w; canvasH = h; canvasDpr = dpr;
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+        canvas.style.width = w + 'px';
+        canvas.style.height = h + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
       render();
     }
     addEventListener('resize', resize);
+
+    // 捲動、排版改變時：同一個畫面週期只重畫一次（scroll 事件一幀可能來好幾次）
+    let renderQueued = false;
+    function requestRender() {
+      if (renderQueued) return;
+      renderQueued = true;
+      requestAnimationFrame(() => { renderQueued = false; render(); });
+    }
 
     // ---------- 捲動：整頁捲動，或網頁裡的捲動區塊（overflow: auto 的 div） ----------
     // 塗鴉會跟著捲動區塊的內容一起移動，捲出區塊範圍就被裁掉看不到。
@@ -308,7 +328,7 @@
     addEventListener('scroll', e => {
       if (!SCROLL_CONTAINER_SELECTOR && e.target !== document && !scroller && !pageScrollable()
           && isMainScroller(e.target)) scroller = e.target;   // 第一次捲動時自動認出捲動區塊
-      render();
+      requestRender();
     }, { passive: true, capture: true });
 
     // ---------- 座標系統：跟著網頁邊界移動、寬高各自拉伸縮小 ----------
@@ -348,7 +368,7 @@
     const screenDist = (dx, dy) => Math.hypot(dx * view.kx, dy * view.ky);
 
     // 網頁排版改變（不一定有 resize 事件，例如側欄收合、字型載入）也重畫
-    new ResizeObserver(() => render()).observe(anchorEl());
+    new ResizeObserver(() => requestRender()).observe(anchorEl());
 
     // ---------- 繪製 ----------
     // 世界座標先換成螢幕座標再畫，線寬用 kw 縮放 → 寬高拉伸時筆觸仍是圓的，不會變成扁橢圓
