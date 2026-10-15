@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>體適能檢測 App 地圖</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: single reading column (~920px) with numbered chapters; diagrams scroll inside their own frames */
+:root {
+  --bg: #f5f7f6;
+  --surface: #ffffff;
+  --fg: #1b2422;
+  --muted: #5d6b67;
+  --line: #d9e1de;
+  --accent: #0f7a66;
+  --accent-soft: #e2f1ec;
+  --c-core: #8a5a00;   --c-core-bg: #fbf0dc;
+  --c-pages: #2457a6;  --c-pages-bg: #e3ecfa;
+  --c-ex: #0f7a66;     --c-ex-bg: #e2f1ec;
+  --c-shared: #7a3f9e; --c-shared-bg: #f1e6f8;
+  --c-static: #6b6f6e; --c-static-bg: #eceeed;
+  --warn: #a6460b; --warn-bg: #fdeee2;
+  --f-display: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --f-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111716; --surface: #182120; --fg: #e3ebe8; --muted: #98a8a3; --line: #2b3735;
+    --accent: #4cc7a9; --accent-soft: #173a32;
+    --c-core: #e8b45a; --c-core-bg: #3a2c12;
+    --c-pages: #84aef0; --c-pages-bg: #1b2a44;
+    --c-ex: #4cc7a9; --c-ex-bg: #173a32;
+    --c-shared: #c99be6; --c-shared-bg: #33223f;
+    --c-static: #aab1ae; --c-static-bg: #262d2b;
+    --warn: #f0a26b; --warn-bg: #3d2414;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111716; --surface: #182120; --fg: #e3ebe8; --muted: #98a8a3; --line: #2b3735;
+  --accent: #4cc7a9; --accent-soft: #173a32;
+  --c-core: #e8b45a; --c-core-bg: #3a2c12;
+  --c-pages: #84aef0; --c-pages-bg: #1b2a44;
+  --c-ex: #4cc7a9; --c-ex-bg: #173a32;
+  --c-shared: #c99be6; --c-shared-bg: #33223f;
+  --c-static: #aab1ae; --c-static-bg: #262d2b;
+  --warn: #f0a26b; --warn-bg: #3d2414;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--f-body); font-size: 15.5px; line-height: 1.75;
+  padding: 0 12px; padding-block: 40px 80px;
+}
+.wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 56px; }
+header { display: grid; gap: 12px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .08em; color: var(--accent); text-transform: uppercase; }
+h1 { font-family: var(--f-display); font-weight: 900; font-size: clamp(28px, 5vw, 40px); line-height: 1.25; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--f-display); font-weight: 700; font-size: 23px; margin: 0; display: flex; gap: 12px; align-items: baseline; text-wrap: balance; }
+h2 .n { font-family: var(--f-mono); font-size: 14px; color: var(--accent); font-weight: 600; }
+h3 { font-size: 16.5px; margin: 0; font-weight: 700; }
+p { margin: 0; }
+.lead { color: var(--muted); font-size: 16.5px; }
+section { display: grid; gap: 18px; }
+code, .mono { font-family: var(--f-mono); font-size: .88em; }
+code { background: var(--accent-soft); color: var(--fg); padding: 1px 6px; border-radius: 4px; overflow-wrap: anywhere; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-size: 12.5px; padding: 3px 10px; border-radius: 999px; font-weight: 500; }
+.k-core { color: var(--c-core); background: var(--c-core-bg); }
+.k-pages { color: var(--c-pages); background: var(--c-pages-bg); }
+.k-ex { color: var(--c-ex); background: var(--c-ex-bg); }
+.k-shared { color: var(--c-shared); background: var(--c-shared-bg); }
+.k-static { color: var(--c-static); background: var(--c-static-bg); }
+
+/* folder tree */
+.tree { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; overflow-x: auto; }
+.tree ul { list-style: none; margin: 0; padding-left: 22px; border-left: 1px dashed var(--line); }
+.tree > ul { padding-left: 0; border-left: 0; }
+.tree li { padding: 3px 0; }
+.row { display: grid; grid-template-columns: minmax(200px, 270px) 1fr; gap: 14px; align-items: baseline; }
+.row .path { font-family: var(--f-mono); font-size: 13.5px; white-space: nowrap; }
+.row .path.dir { font-weight: 600; }
+.row .desc { color: var(--muted); font-size: 14px; min-width: 0; }
+.row .path.k-core, .row .path.k-pages, .row .path.k-ex, .row .path.k-shared, .row .path.k-static { background: none; }
+.tree .group { margin-top: 6px; }
+@media (max-width: 640px) {
+  .row { grid-template-columns: 1fr; gap: 0; }
+  .row .desc { padding-left: 2px; margin-bottom: 4px; }
+}
+
+/* diagrams */
+.fig { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; overflow-x: auto; }
+.fig pre.mermaid { margin: 0; background: transparent; text-align: center; min-width: 560px; }
+.cap { font-size: 13.5px; color: var(--muted); }
+
+/* notes */
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.note { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 16px 18px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.note p { font-size: 14.5px; }
+.warn { border-color: transparent; background: var(--warn-bg); }
+.warn h3 { color: var(--warn); }
+
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12.5px; color: var(--muted); font-weight: 500; letter-spacing: .04em; }
+tr:last-child td { border-bottom: 0; }
+td .mono { white-space: nowrap; }
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.note.kind { gap: 10px; }
+.note.kind .chip { justify-self: start; }
+section > h3 { margin-top: 8px; }
+.matrix th, .matrix td { text-align: center; white-space: nowrap; }
+.matrix td:first-child, .matrix th:first-child { text-align: left; }
+.matrix td { color: var(--accent); }
+.matrix td:first-child { color: var(--fg); }
+/* hand-drawn diagram */
+.dg { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; }
+.dg-scroll { overflow-x: auto; }
+.dg svg { display: block; width: 100%; min-width: 780px; height: auto; color: var(--fg); font-family: var(--f-body); }
+.dg figcaption { font-size: 13.5px; color: var(--muted); }
+.dg rect { stroke-width: 1.5; }
+.dg .d-page { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+.dg .d-new { fill: var(--c-ex-bg); stroke: var(--c-ex); }
+.dg .d-fn { fill: var(--c-core-bg); stroke: var(--c-core); }
+.dg .d-di { fill: var(--c-shared-bg); stroke: var(--c-shared); }
+.dg .d-html { fill: var(--surface); stroke: var(--muted); stroke-dasharray: 5 4; }
+.dg .d-ext { fill: var(--c-static-bg); stroke: var(--c-static); }
+.dg .d-note { fill: none; stroke: var(--line); stroke-dasharray: 3 3; }
+.dg text { fill: currentColor; }
+.dg .t-title { font-size: 16px; font-weight: 700; }
+.dg .t-name { font-size: 13px; font-weight: 700; }
+.dg .t-sub { font-size: 11.5px; fill: var(--muted); }
+.dg .t-mono { font-size: 11px; font-family: var(--f-mono); fill: var(--muted); }
+.dg .t-lab { font-size: 11px; font-family: var(--f-mono); fill: var(--accent); font-weight: 600; }
+.dg .t-lane { font-size: 12px; fill: var(--muted); letter-spacing: .04em; }
+.dg .ar line, .dg .ar polyline { stroke: currentColor; stroke-width: 1.4; fill: none; }
+.dg .ar .dash { stroke-dasharray: 4 4; }
+.dg .sep { stroke: var(--line); stroke-dasharray: 2 4; }
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.issues { display: grid; gap: 12px; }
+.issue { display: grid; grid-template-columns: 44px 1fr; gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+.issue .body { display: grid; gap: 6px; min-width: 0; }
+.issue .sev { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+.sev-high .sev { background: var(--warn-bg); color: var(--warn); }
+.sev-mid .sev { background: var(--c-core-bg); color: var(--c-core); }
+.sev-low .sev { background: var(--c-static-bg); color: var(--c-static); }
+.issue p { font-size: 14.5px; }
+.issue .where { font-family: var(--f-mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+ol.steps { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">d:\廠商 · Ionic 8 + Angular 19 · MoveNet</div>
+  <h1>長者體適能檢測 App：資料夾結構與執行流程</h1>
+  <p class="lead">這是一個在瀏覽器或手機上跑的 Ionic 網頁 App。它用相機拍受測者，在裝置上用 MoveNet 偵測骨架，自動計次並評分四種測驗：椅子坐立、原地抬膝、單腳站立、椅子繞物。結果會送到後端 <code>/fitness-api</code>，LLM 建議則來自 <code>/llm/encourage</code>。</p>
+  <div class="chips">
+    <span class="chip k-core">core 基礎設施</span>
+    <span class="chip k-pages">pages 一般頁面</span>
+    <span class="chip k-ex">exercises 測驗頁</span>
+    <span class="chip k-shared">shared 共用模組</span>
+    <span class="chip k-static">靜態資源 / 設定</span>
+  </div>
+</header>
+
+<!-- ============ 1 ============ -->
+<section id="tree">
+  <h2><span class="n">01</span>資料夾裡都放什麼</h2>
+  <p>專案根目錄只放設定檔和建置產物，程式碼都在 <code>src/</code>。<code>src/app/</code> 依職責分成 <strong>core → pages → exercises → shared</strong> 四層。</p>
+
+  <div class="tree">
+    <ul>
+      <li><div class="row"><span class="path dir">d:\廠商\</span><span class="desc">專案根目錄</span></div>
+        <ul>
+          <li><div class="row"><span class="path k-static">package.json · angular.json</span><span class="desc">相依套件、npm 指令、Angular 建置設定</span></div></li>
+          <li><div class="row"><span class="path k-static">proxy.conf.json</span><span class="desc">開發時把 API 請求轉發到後端</span></div></li>
+          <li><div class="row"><span class="path dir k-static">certs/</span><span class="desc">mkcert 憑證，給 <code>npm run start:https</code> 用（手機相機需要 HTTPS）</span></div></li>
+          <li><div class="row"><span class="path dir k-static">fitness/</span><span class="desc">建置產物（<code>npm run build</code> 產生），不要手動修改</span></div></li>
+          <li><div class="row"><span class="path dir">src/</span><span class="desc">所有原始碼</span></div>
+            <ul>
+              <li><div class="row"><span class="path">index.html · main.ts</span><span class="desc"><strong>進入點</strong>。<code>main.ts</code> 啟動 App，並決定注入真實或 Mock 的服務</span></div></li>
+              <li><div class="row"><span class="path">global.scss · theme/</span><span class="desc">全站樣式、Ionic 主題色</span></div></li>
+              <li><div class="row"><span class="path dir k-static">environments/</span><span class="desc">環境開關：<code>production</code>、<code>apiBase</code>、<code>debug</code>、<code>loginTo</code>（dev / stage / prod 三份）</span></div></li>
+              <li><div class="row"><span class="path dir k-static">assets/</span><span class="desc">靜態檔</span></div>
+                <ul>
+                  <li><div class="row"><span class="path">fitness_standards.json</span><span class="desc">常模表：依性別和年齡組換算成績等級</span></div></li>
+                  <li><div class="row"><span class="path">coach_template.json</span><span class="desc">動作標準門檻：每一下的動作品質評分用</span></div></li>
+                  <li><div class="row"><span class="path">tfjs/</span><span class="desc">TensorFlow.js 的 WASM 後端</span></div></li>
+                  <li><div class="row"><span class="path">video/ · *.mp4</span><span class="desc">介紹頁的示範影片</span></div></li>
+                  <li><div class="row"><span class="path">models/ · onnx/</span><span class="desc">YOLO ONNX 模型和執行檔，程式碼目前沒有用到</span></div></li>
+                </ul>
+              </li>
+              <li><div class="row"><span class="path dir">app/</span><span class="desc">Angular 程式</span></div>
+                <ul>
+                  <li><div class="row"><span class="path">app.component.*</span><span class="desc">根元件：只放 <code>&lt;ion-router-outlet&gt;</code>，各頁面就顯示在這裡</span></div></li>
+                  <li><div class="row"><span class="path">app.routes.ts</span><span class="desc"><strong>路由表</strong>：網址 → 頁面元件（全部延遲載入）</span></div></li>
+
+                  <li class="group"><div class="row"><span class="path dir k-core">core/</span><span class="desc">全站基礎設施</span></div>
+                    <ul>
+                      <li><div class="row"><span class="path k-core">guards/</span><span class="desc">登入守衛（真實版看 localStorage；Mock 版看 <code>environment.loginState</code>）</span></div></li>
+                      <li><div class="row"><span class="path k-core">services/auth.*</span><span class="desc">登入狀態和使用者資料（GET <code>/fitness-api/user</code>）</span></div></li>
+                      <li><div class="row"><span class="path k-core">services/data.*</span><span class="desc">上傳測驗結果（POST <code>/fitness-api/data</code>）和使用者資料（POST <code>/fitness-api/user</code>）</span></div></li>
+                    </ul>
+                  </li>
+
+                  <li class="group"><div class="row"><span class="path dir k-pages">pages/</span><span class="desc">測驗以外的畫面</span></div>
+                    <ul>
+                      <li><div class="row"><span class="path k-pages">welcome/</span><span class="desc">路由 <code>''</code>：體適能介紹，自動朗讀</span></div></li>
+                      <li><div class="row"><span class="path k-pages">exercise-intro/</span><span class="desc">路由 <code>/3</code>：三種運動的示範影片，登入後才能往下走</span></div></li>
+                      <li><div class="row"><span class="path k-pages">mode/</span><span class="desc">路由 <code>/mode</code>：填性別和生日，檢查登入及年齡 ≥ 65，再導到測驗頁</span></div></li>
+                    </ul>
+                  </li>
+
+                  <li class="group"><div class="row"><span class="path dir k-ex">exercises/</span><span class="desc">每個測驗一個資料夾，都拆成「page + config + report + 小工具」</span></div>
+                    <ul>
+                      <li><div class="row"><span class="path dir k-ex">sit-stand/</span><span class="desc">椅子坐立：<code>test1</code> 練習 / <code>exam_sit</code> 正式</span></div>
+                        <ul>
+                          <li><div class="row"><span class="path k-ex">sit-stand.page.ts</span><span class="desc">流程編排：生命週期、主迴圈、階段切換</span></div></li>
+                          <li><div class="row"><span class="path k-ex">sit-stand.page.html/.scss</span><span class="desc">畫面：video、canvas、按鈕、統計視窗</span></div></li>
+                          <li><div class="row"><span class="path k-ex">sit-stand.config.ts</span><span class="desc">階段定義、語音文字、所有可調參數</span></div></li>
+                          <li><div class="row"><span class="path k-ex">sit-calibrator.ts</span><span class="desc">坐姿校正：取臀部最低點 → 坐站分界線</span></div></li>
+                          <li><div class="row"><span class="path k-ex">rep-counter.ts</span><span class="desc">坐 → 站 → 坐 算 1 下</span></div></li>
+                          <li><div class="row"><span class="path k-ex">sit-stand-report.ts</span><span class="desc">單下評分、常模等級、LLM 建議、後端摘要</span></div></li>
+                        </ul>
+                      </li>
+                      <li><div class="row"><span class="path dir k-ex">step/</span><span class="desc">原地抬膝（<code>test</code> / <code>exam_step</code>）：多了膝蓋追蹤和抬膝計次</span></div></li>
+                      <li><div class="row"><span class="path dir k-ex">single-leg/</span><span class="desc">單腳站立（<code>test_single</code> / <code>exam_single</code>）</span></div></li>
+                      <li><div class="row"><span class="path dir k-ex">chair-round/</span><span class="desc">椅子繞物（<code>chair_round</code>）：有自己的多人偵測、追蹤和流程狀態機，路由受登入守衛保護</span></div></li>
+                      <li class="group"><div class="row"><span class="path dir k-shared">shared/</span><span class="desc">測驗頁共用的模組</span></div>
+                        <ul>
+                          <li><div class="row"><span class="path k-shared">pose/</span><span class="desc">相機、MoveNet 偵測、畫布繪圖、受測者追蹤、語音、姿態純函式、共用參數</span></div></li>
+                          <li><div class="row"><span class="path k-shared">report/</span><span class="desc">常模等級查表、LLM 建議（含逾時）、讀取受測者資料</span></div></li>
+                          <li><div class="row"><span class="path k-shared">services/</span><span class="desc"><code>CoachScoreService</code>（每一下的評分）、<code>GptFeedbackService</code>（LLM 鼓勵語）</span></div></li>
+                          <li><div class="row"><span class="path k-shared">styles/</span><span class="desc">全螢幕相機頁共用的 SCSS</span></div></li>
+                        </ul>
+                      </li>
+                    </ul>
+                  </li>
+
+                  <li class="group"><div class="row"><span class="path dir k-shared">shared/</span><span class="desc">全站資料服務</span></div>
+                    <ul>
+                      <li><div class="row"><span class="path k-shared">profile.service.ts</span><span class="desc">性別和生日的全域狀態，換算年齡組</span></div></li>
+                      <li><div class="row"><span class="path k-shared">fitness-standards.service.ts</span><span class="desc">依常模表把成績換成等級</span></div></li>
+                    </ul>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="journey">
+  <h2><span class="n">02</span>使用者走過的頁面</h2>
+  <p>每個頁面都由 <code>router.navigate()</code> 導過去。網址一變，Angular 就建立對應的頁面元件，並自動呼叫它的生命週期方法（<code>ngOnInit</code>、<code>ionViewWillEnter</code>）。</p>
+  <div class="fig">
+<pre class="mermaid">
+flowchart TD
+  W["歡迎頁  ''<br/>welcome.page"] -->|"下一步"| I["檢測項目介紹  /3<br/>exercise-intro.page<br/>播示範影片"]
+  I --> L1{"已登入？"}
+  L1 -- "否" --> LG["另開視窗 /login"]
+  L1 -- "是" --> M["模式選擇  /mode<br/>mode.page<br/>填性別、生日"]
+  M -->|"點卡片 selectMode(id)"| C1{"已登入？"}
+  C1 -- "否" --> LG
+  C1 -- "是" --> C2{"年齡 ≥ 65？"}
+  C2 -- "否" --> X["提示：僅支援 65 歲以上"]
+  C2 -- "是" --> S["saveUserData()<br/>POST /fitness-api/user"]
+  S --> R{"MODE_ROUTES[id]"}
+  R -- "test1 / exam_sit" --> P1["/sit-stand<br/>椅子坐立"]
+  R -- "test / exam_step" --> P2["/step<br/>原地抬膝"]
+  R -- "test_single / exam_single" --> P3["/single-leg<br/>單腳站立"]
+  R -- "chair_round" --> G{"AuthGuard"}
+  G --> P4["/chair-round<br/>椅子繞物"]
+  P1 -->|"回選單 goMode()"| M
+  P2 -->|"回選單"| M
+  P3 -->|"回選單"| M
+  P4 -->|"返回"| M
+</pre>
+  </div>
+  <p class="cap">導到測驗頁時會帶上網址參數 <code>?mode=…&amp;sex=…&amp;birthday=…&amp;ageBand=…&amp;start=1</code>。測驗頁從參數判斷是練習還是正式測驗，以及要對照哪一組常模。</p>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="anatomy">
+  <h2><span class="n">03</span>SitStandPage 的內部分工</h2>
+  <p><code>sit-stand.page.ts</code> 本身幾乎不做計算，只負責<strong>決定現在該做什麼、該叫誰做</strong>。它用到的東西依「怎麼拿到手」分成三種：</p>
+  <div class="grid3">
+    <div class="note kind"><span class="chip k-ex">new 出來的物件</span><p>頁面自己 <code>new</code>，<strong>每頁一份</strong>，有自己的狀態。例如相機、偵測器、追蹤器、計次器。</p></div>
+    <div class="note kind"><span class="chip k-shared">Angular 注入的服務</span><p>寫在 <code>constructor(...)</code> 參數裡，由 Angular 自動提供，<strong>全站共用一份</strong>。</p></div>
+    <div class="note kind"><span class="chip k-core">純函式</span><p>直接 <code>import</code> 來呼叫，沒有狀態：給輸入、拿結果。例如 <code>pose-utils</code>、<code>sit-stand-report</code>。</p></div>
+  </div>
+
+  <h3>每一幀的資料怎麼流過這些模組</h3>
+  <figure class="dg">
+    <div class="dg-scroll">
+    <svg viewBox="0 0 1000 610" role="img" aria-label="SitStandPage 每幀呼叫的模組與資料流：相機串流到 video，MoveNet 偵測出 poses，TargetTracker 鎖定 target，pose-utils 算出臀部高度 hipY；校正階段由 SitCalibrator 算出分界線，測驗階段由 RepCounter 計次，每完成一下交給 sit-stand-report 評分，結束時經 DataService 送到後端。畫面由 PoseCanvasRenderer 畫在 canvas，語音由 Speaker 播出。">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <!-- conductor -->
+      <rect class="d-page" x="40" y="16" width="920" height="78" rx="10"/>
+      <text x="500" y="44" text-anchor="middle" class="t-title">SitStandPage（sit-stand.page.ts）</text>
+      <text x="500" y="66" text-anchor="middle" class="t-sub">保存目前的 phase，每幀依階段決定呼叫下面哪些模組；本身幾乎不做計算</text>
+      <text x="500" y="84" text-anchor="middle" class="t-mono">phase · flowId · lifeId · repTable · examResult</text>
+      <text x="500" y="120" text-anchor="middle" class="t-lane">▼ 每一幀 processFrame() 依序呼叫</text>
+
+      <!-- row 1: perception -->
+      <rect class="d-new" x="40" y="136" width="140" height="64" rx="8"/>
+      <text x="110" y="163" text-anchor="middle" class="t-name">CameraController</text>
+      <text x="110" y="184" text-anchor="middle" class="t-sub">開相機串流</text>
+
+      <rect class="d-html" x="230" y="136" width="140" height="64" rx="8"/>
+      <text x="300" y="163" text-anchor="middle" class="t-name">&lt;video&gt;</text>
+      <text x="300" y="184" text-anchor="middle" class="t-sub">相機畫面（隱藏）</text>
+
+      <rect class="d-new" x="420" y="136" width="140" height="64" rx="8"/>
+      <text x="490" y="163" text-anchor="middle" class="t-name">MoveNetDetector</text>
+      <text x="490" y="184" text-anchor="middle" class="t-sub">detect()</text>
+
+      <rect class="d-new" x="610" y="136" width="140" height="64" rx="8"/>
+      <text x="680" y="163" text-anchor="middle" class="t-name">TargetTracker</text>
+      <text x="680" y="184" text-anchor="middle" class="t-sub">update() 跟住同一人</text>
+
+      <rect class="d-fn" x="800" y="136" width="140" height="64" rx="8"/>
+      <text x="870" y="163" text-anchor="middle" class="t-name">pose-utils</text>
+      <text x="870" y="184" text-anchor="middle" class="t-sub">入鏡檢查・getHipY</text>
+
+      <g class="ar">
+        <line x1="182" y1="172" x2="226" y2="172" marker-end="url(#ah)"/>
+        <line x1="372" y1="172" x2="416" y2="172" marker-end="url(#ah)"/>
+        <line x1="562" y1="172" x2="606" y2="172" marker-end="url(#ah)"/>
+        <line x1="752" y1="172" x2="796" y2="172" marker-end="url(#ah)"/>
+      </g>
+      <text x="205" y="164" text-anchor="middle" class="t-lab">串流</text>
+      <text x="395" y="164" text-anchor="middle" class="t-lab">影像</text>
+      <text x="585" y="164" text-anchor="middle" class="t-lab">poses</text>
+      <text x="775" y="164" text-anchor="middle" class="t-lab">target</text>
+
+      <!-- hipY down -->
+      <g class="ar">
+        <line x1="870" y1="202" x2="870" y2="252" marker-end="url(#ah)"/>
+        <polyline points="870,228 680,228 680,252" fill="none" marker-end="url(#ah)"/>
+      </g>
+      <text x="880" y="222" class="t-lab">hipY</text>
+
+      <!-- row 2: decision, right to left -->
+      <rect class="d-new" x="800" y="256" width="140" height="64" rx="8"/>
+      <text x="870" y="283" text-anchor="middle" class="t-name">SitCalibrator</text>
+      <text x="870" y="304" text-anchor="middle" class="t-sub">calib_sit：算分界線</text>
+
+      <rect class="d-new" x="610" y="256" width="140" height="64" rx="8"/>
+      <text x="680" y="283" text-anchor="middle" class="t-name">RepCounter</text>
+      <text x="680" y="304" text-anchor="middle" class="t-sub">testing：坐→站→坐</text>
+
+      <rect class="d-fn" x="420" y="256" width="140" height="64" rx="8"/>
+      <text x="490" y="283" text-anchor="middle" class="t-name">sit-stand-report</text>
+      <text x="490" y="304" text-anchor="middle" class="t-sub">評分・等級・摘要</text>
+
+      <rect class="d-di" x="230" y="256" width="140" height="64" rx="8"/>
+      <text x="300" y="283" text-anchor="middle" class="t-name">DataService</text>
+      <text x="300" y="304" text-anchor="middle" class="t-sub">send()</text>
+
+      <rect class="d-ext" x="40" y="256" width="140" height="64" rx="8"/>
+      <text x="110" y="283" text-anchor="middle" class="t-name">後端</text>
+      <text x="110" y="304" text-anchor="middle" class="t-mono">/fitness-api/data</text>
+
+      <g class="ar">
+        <line x1="798" y1="288" x2="754" y2="288" marker-end="url(#ah)"/>
+        <line x1="608" y1="288" x2="564" y2="288" marker-end="url(#ah)"/>
+        <line x1="418" y1="288" x2="374" y2="288" marker-end="url(#ah)"/>
+        <line x1="228" y1="288" x2="184" y2="288" marker-end="url(#ah)"/>
+      </g>
+      <text x="776" y="280" text-anchor="middle" class="t-lab">分界線</text>
+      <text x="586" y="280" text-anchor="middle" class="t-lab">每 1 下</text>
+      <text x="396" y="280" text-anchor="middle" class="t-lab">done</text>
+      <text x="206" y="280" text-anchor="middle" class="t-lab">POST</text>
+
+      <!-- row 3: report helpers -->
+      <g class="ar">
+        <polyline points="460,322 460,346 400,346 400,368" fill="none" marker-end="url(#ah)"/>
+        <polyline points="520,322 520,346 580,346 580,368" fill="none" marker-end="url(#ah)"/>
+      </g>
+      <rect class="d-di" x="330" y="372" width="140" height="58" rx="8"/>
+      <text x="400" y="396" text-anchor="middle" class="t-name">CoachScoreService</text>
+      <text x="400" y="416" text-anchor="middle" class="t-sub">每 1 下的動作評分</text>
+
+      <rect class="d-di" x="510" y="372" width="140" height="58" rx="8"/>
+      <text x="580" y="396" text-anchor="middle" class="t-name">GptFeedbackService</text>
+      <text x="580" y="416" text-anchor="middle" class="t-sub">練習第 3 下的建議</text>
+
+      <rect class="d-ext" x="700" y="372" width="150" height="58" rx="8"/>
+      <text x="775" y="396" text-anchor="middle" class="t-name">後端 LLM</text>
+      <text x="775" y="416" text-anchor="middle" class="t-mono">/llm/encourage</text>
+      <g class="ar"><line x1="652" y1="401" x2="696" y2="401" marker-end="url(#ah)"/></g>
+      <text x="674" y="393" text-anchor="middle" class="t-lab">POST</text>
+
+      <!-- row 4: outputs -->
+      <line x1="40" y1="456" x2="960" y2="456" class="sep"/>
+      <text x="40" y="478" class="t-lane">每幀的畫面與聲音輸出</text>
+
+      <rect class="d-html" x="40" y="490" width="140" height="58" rx="8"/>
+      <text x="110" y="514" text-anchor="middle" class="t-name">&lt;canvas&gt;</text>
+      <text x="110" y="534" text-anchor="middle" class="t-sub">使用者看到的畫面</text>
+
+      <rect class="d-new" x="230" y="490" width="140" height="58" rx="8"/>
+      <text x="300" y="514" text-anchor="middle" class="t-name">PoseCanvasRenderer</text>
+      <text x="300" y="534" text-anchor="middle" class="t-sub">影像・框・骨架・分界線</text>
+
+      <rect class="d-new" x="420" y="490" width="140" height="58" rx="8"/>
+      <text x="490" y="514" text-anchor="middle" class="t-name">Speaker</text>
+      <text x="490" y="534" text-anchor="middle" class="t-sub">提示・倒數・報次數</text>
+
+      <rect class="d-ext" x="610" y="490" width="140" height="58" rx="8"/>
+      <text x="680" y="514" text-anchor="middle" class="t-name">瀏覽器語音</text>
+      <text x="680" y="534" text-anchor="middle" class="t-mono">speechSynthesis</text>
+
+      <g class="ar">
+        <line x1="228" y1="519" x2="184" y2="519" marker-end="url(#ah)"/>
+        <line x1="562" y1="519" x2="606" y2="519" marker-end="url(#ah)"/>
+        <polyline points="110,550 110,566 865,566 865,552" fill="none" class="dash" marker-end="url(#ah)"/>
+      </g>
+      <text x="206" y="511" text-anchor="middle" class="t-lab">繪製</text>
+      <text x="584" y="511" text-anchor="middle" class="t-lab">播放</text>
+      <rect x="770" y="490" width="190" height="58" rx="8" class="d-note"/>
+      <text x="865" y="514" text-anchor="middle" class="t-sub">點 canvas → onCanvasClick</text>
+      <text x="865" y="534" text-anchor="middle" class="t-sub">→ TargetTracker 換人</text>
+
+      <!-- legend -->
+      <g transform="translate(40,588)">
+        <rect class="d-new" x="0" y="-10" width="14" height="14" rx="3"/><text x="20" y="1" class="t-sub" text-anchor="start">new 出來的物件</text>
+        <rect class="d-fn" x="150" y="-10" width="14" height="14" rx="3"/><text x="170" y="1" class="t-sub" text-anchor="start">純函式</text>
+        <rect class="d-di" x="250" y="-10" width="14" height="14" rx="3"/><text x="270" y="1" class="t-sub" text-anchor="start">Angular 注入的服務</text>
+        <rect class="d-html" x="420" y="-10" width="14" height="14" rx="3"/><text x="440" y="1" class="t-sub" text-anchor="start">HTML 元素</text>
+        <rect class="d-ext" x="540" y="-10" width="14" height="14" rx="3"/><text x="560" y="1" class="t-sub" text-anchor="start">頁面以外（後端、瀏覽器）</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption>上排把相機影像變成「受測者臀部的高度 hipY」，中排依階段把 hipY 變成分界線、次數和成績，最後送到後端。哪一個模組會被呼叫，由 SitStandPage 依目前的 phase 決定，例如 SitCalibrator 只在 calib_sit 用到，RepCounter 只在 testing 用到。</figcaption>
+  </figure>
+
+  <h3>每個模組做什麼、頁面在哪裡呼叫它</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>模組</th><th>負責</th><th>頁面呼叫的方法</th><th>呼叫的地方</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">CameraController</td><td>開關相機串流、切換前後鏡頭、變焦</td><td class="mono">start · stop · toggle · zoomIn · zoomOut</td><td><code>start()</code>、<code>stop()</code>、按鈕</td></tr>
+        <tr><td class="mono">MoveNetDetector</td><td>載入 MoveNet 模型，每幀找出畫面中所有人的關鍵點</td><td class="mono">load · detect · dispose</td><td><code>start()</code>、<code>processFrame()</code>、<code>stop()</code></td></tr>
+        <tr><td class="mono">PoseCanvasRenderer</td><td>把鏡像影像畫到 canvas，再疊上外框、骨架、標籤、分界線；把點擊位置換算成姿態座標</td><td class="mono">syncSize · drawMirroredVideo · drawBox · drawSkeleton · drawLabel · drawThresholdLine · clientToPoseCoords</td><td>每一幀、<code>onCanvasClick()</code></td></tr>
+        <tr><td class="mono">TargetTracker</td><td>每幀的偵測順序都不固定，它用外框重疊度和中心點預測，持續跟住同一個人</td><td class="mono">lockIndex · update · indexAt · reset</td><td>選人、<code>trackTarget()</code>、點選</td></tr>
+        <tr><td class="mono">Speaker</td><td>語音播報：立即播、播完再繼續、節流（避免一直重複）</td><td class="mono">say · sayAndWait · sayThrottled · cancel</td><td>幾乎每個階段</td></tr>
+        <tr><td class="mono">SitCalibrator</td><td>坐著 5 秒，記錄臀部最低點，算出坐站分界線</td><td class="mono">begin · addSample · remainingSec · thresholdRatio · reset</td><td><code>enterCalibration()</code>、<code>updateCalibration()</code>、<code>enterStarting()</code></td></tr>
+        <tr><td class="mono">RepCounter</td><td>臀部高於分界線算站、低於算坐；坐 → 站 → 坐 計 1 下</td><td class="mono">reset · update · reps · posture</td><td><code>enterStarting()</code>、<code>updateTesting()</code></td></tr>
+        <tr><td class="mono">pose-utils</td><td>和姿態有關的計算：外框、IoU、臀部高度、入鏡檢查、骨架佔畫面比例</td><td class="mono">getBBox · iou · getHipY · checkHeadAndAnkles · getOccupancy · toFrame</td><td>每一幀</td></tr>
+        <tr><td class="mono">sit-stand-report</td><td>單下評分、常模等級、LLM 建議、組出要送後端的摘要</td><td class="mono">scoreRep · gradeExam · fetchAdvice · buildSummary</td><td><code>onRepCompleted()</code>、<code>requestAdvice()</code>、<code>finishSession()</code></td></tr>
+        <tr><td class="mono">DataServiceInterface</td><td>把摘要 POST 到後端（正式或 Mock 由 main.ts 決定）</td><td class="mono">send</td><td><code>finishSession()</code></td></tr>
+        <tr><td class="mono">ProfileService · ActivatedRoute</td><td>讀取模式、性別、年齡組</td><td class="mono">queryParamMap · profileValue · getCurrentAgeBand</td><td><code>ngOnInit()</code> → <code>readModeAndProfile()</code></td></tr>
+        <tr><td class="mono">HttpClient</td><td>載入常模表和動作標準 JSON</td><td class="mono">get</td><td><code>ngOnInit()</code> → <code>loadAssets()</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>哪個階段用到哪些模組</h3>
+  <div class="tbl">
+    <table class="matrix">
+      <thead><tr><th>模組 ＼ 階段</th><th>loading</th><th>select_person</th><th>positioning</th><th>calib_sit</th><th>starting</th><th>testing</th><th>done</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">CameraController</td><td>●</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="mono">MoveNetDetector</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td></tr>
+        <tr><td class="mono">PoseCanvasRenderer</td><td></td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td></tr>
+        <tr><td class="mono">TargetTracker</td><td></td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td></tr>
+        <tr><td class="mono">Speaker</td><td></td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td><td>●</td></tr>
+        <tr><td class="mono">SitCalibrator</td><td></td><td>重置</td><td>重置</td><td>●</td><td>●</td><td></td><td></td></tr>
+        <tr><td class="mono">RepCounter</td><td></td><td></td><td></td><td></td><td>重置</td><td>●</td><td></td></tr>
+        <tr><td class="mono">sit-stand-report</td><td></td><td></td><td></td><td></td><td></td><td>●</td><td>●</td></tr>
+        <tr><td class="mono">DataService</td><td></td><td></td><td></td><td></td><td></td><td></td><td>●</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="cap">● 表示該階段會呼叫這個模組。相機只在 loading 時開啟，但變焦和切換鏡頭的按鈕任何時候都能按。進入 done 之後主迴圈仍會繼續偵測和畫面更新，只是不再計次。抬膝（<code>step/</code>）和單腳站立（<code>single-leg/</code>）也是相同的拆法，只是把校正器和計次器換成各自的版本。</p>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="states">
+  <h2><span class="n">04</span>測驗頁的階段流程</h2>
+  <p>測驗頁是一個<strong>狀態機</strong>。<code>phase</code> 記錄目前在哪個階段。每個階段有一個 <code>enterXxx()</code> 負責進入，一個 <code>updateXxx()</code> 負責每一幀的處理。不管在哪個已鎖定的階段，受測者離開畫面太久都會退回選人。</p>
+  <div class="fig">
+<pre class="mermaid">
+stateDiagram-v2
+  direction TB
+  [*] --> loading: ionViewWillEnter → start()
+  loading --> select_person: 相機與模型就緒
+  select_person --> positioning: 單人穩定 15 幀自動鎖定<br/>或使用者點選
+  positioning --> calib_sit: 骨架佔畫面 60–90%<br/>且說明語音播完
+  positioning --> positioning: 點了另一個人
+  calib_sit --> starting: 坐著 5 秒倒數結束<br/>產生坐站分界線
+  starting --> testing: 「開始運動」播完
+  testing --> done: 正式 30 秒到 / 練習做滿 5 下
+  positioning --> select_person: 受測者遺失太久
+  calib_sit --> select_person: 受測者遺失太久
+  testing --> select_person: 受測者遺失太久
+  done --> [*]: 送摘要、開統計
+</pre>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>階段</th><th>畫面上做的事</th><th>離開條件</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">select_person</td><td>可信的人畫藍框；多人時畫紅框，等使用者點</td><td>只有 1 人且連續 15 幀位置穩定，或使用者點選</td></tr>
+        <tr><td class="mono">positioning</td><td>引導「往前 / 往後」，檢查頭和腳踝都在畫面中</td><td>骨架高度佔畫面 60–90%，且鎖定說明播完</td></tr>
+        <tr><td class="mono">calib_sit</td><td>坐著不動，倒數 5、4、3、2、1，畫預覽線</td><td>倒數到 0 → 分界線 = 臀部最低點往上 2% 畫面高度</td></tr>
+        <tr><td class="mono">starting</td><td>固定分界線、清空成績、播「開始運動」</td><td>語音播完</td></tr>
+        <tr><td class="mono">testing</td><td>臀部越過分界線判定坐 / 站，每完成 1 下就評分；練習模式第 3 下取得 LLM 建議</td><td>正式：30 秒到；練習：做滿 5 下</td></tr>
+        <tr><td class="mono">done</td><td>播結語，正式測驗算常模等級，送摘要到後端，打開統計</td><td>使用者按「回選單」</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="cap">抬膝和單腳站立的階段較少（<code>select_person → positioning → calib_stand → testing → done</code>），校正改為站姿。椅子繞物有自己的流程（<code>idle → seek_near → seek_far → sit_calib → pre_countdown → exercise → finished</code>）。</p>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="frame">
+  <h2><span class="n">05</span>每一幀發生什麼事</h2>
+  <p><code>start()</code> 成功後，主迴圈靠 <code>requestAnimationFrame</code> 一直跑。這一幀處理完才排下一幀，所以模型推論不會疊在一起。</p>
+  <div class="fig">
+<pre class="mermaid">
+flowchart TD
+  A["onFrame()"] --> B{"running ?"}
+  B -- "否" --> Z["停止"]
+  B -- "是" --> C["畫鏡像影像<br/>detector.detect(video) → poses"]
+  C --> D{"phase == select_person ?"}
+  D -- "是" --> E["updateSelectPerson(poses)"]
+  D -- "否" --> F["trackTarget(poses)<br/>追蹤、畫框和骨架<br/>遺失太久 → 退回選人"]
+  F --> G{"testing 且時間到？"}
+  G -- "是" --> H["finishSession()"]
+  G -- "否" --> I{"有受測者，且頭、腳、臀都偵測得到？"}
+  I -- "否" --> J["顯示提示文字"]
+  I -- "是" --> K{"依 phase 分派"}
+  K --> K1["updatePositioning"]
+  K --> K2["updateCalibration"]
+  K --> K3["updateTesting"]
+  E --> N["scheduleFrame()<br/>排下一幀"]
+  J --> N
+  K1 --> N
+  K2 --> N
+  K3 --> N
+  H --> N
+  N --> A
+</pre>
+  </div>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="unused">
+  <h2><span class="n">06</span>專案裡沒有用到的東西</h2>
+  <p>以下都是在 <code>src/</code>、<code>angular.json</code> 裡搜尋不到任何引用的項目。刪除前建議先確認沒有別的專案或部署腳本在用。</p>
+
+  <h3>套件（package.json 的 dependencies）</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>套件</th><th>狀況</th><th>建議</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">@mlc-ai/web-llm</td><td>沒有任何 import。LLM 建議現在是打後端 <code>/llm/encourage</code></td><td>移除</td></tr>
+        <tr><td class="mono">onnxruntime-web</td><td>沒有任何 import，只有 <code>angular.json</code> 還把它的 <code>.wasm</code> 複製到 build 的 <code>assets/onnx</code></td><td>移除套件，並刪掉 angular.json 裡那段複製設定</td></tr>
+        <tr><td class="mono">git · ng · ionic</td><td>指令工具或佔位套件，被誤裝進執行期相依。<code>ionic</code> 還是很舊的 v5 CLI</td><td>移除；CLI 用全域安裝或 devDependencies</td></tr>
+        <tr><td class="mono">@angular/animations</td><td>沒有 import，也沒有 <code>provideAnimations()</code></td><td>移除後跑一次 build 確認</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>靜態資源（src/assets，build 時會整包複製）</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>檔案</th><th class="num">大小</th><th>狀況</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">assets/video/ sit · step · leg.mp4</td><td class="num">95 MB</td><td>沒被引用。介紹頁用的是 <code>assets/椅子坐站運動.mp4</code> 等另一份</td></tr>
+        <tr><td class="mono">assets/onnx/</td><td class="num">46 MB</td><td>ONNX Runtime 執行檔，沒有程式載入</td></tr>
+        <tr><td class="mono">assets/models/yolo11n.onnx</td><td class="num">11 MB</td><td>沒有程式載入。<code>environment.yoloModelUrl</code> 指向的 <code>yolov8n-pose.onnx</code> 根本不存在，而且這個設定也沒人讀</td></tr>
+        <tr><td class="mono">assets/shapes.svg · E4TQEU4OJI3U.svg</td><td class="num">&lt; 1 MB</td><td>沒被引用（同名的 <code>.webp</code> 有在歡迎頁用到）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="cap">合計約 <strong>152 MB</strong> 的檔案會被複製進每一次 build。</p>
+
+  <h3>程式碼</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>位置</th><th>狀況</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">shared/fitness-standards.service.ts</td><td>整個服務只有自己的 spec 在用。常模查表實際走的是 <code>exercises/shared/report/exam-grade.ts</code></td></tr>
+        <tr><td class="mono">ProfileService.gradeByAction · gradeByExamKey · percentOf</td><td>沒人呼叫，但 ProfileService 一建立就會去下載 <code>fitness_standards.json</code>，只為了這幾個方法</td></tr>
+        <tr><td class="mono">GptFeedbackService.isReady · init · genNeutralSummary</td><td>沒人呼叫；<code>genNeutralSummary</code> 是預留功能，只回傳空字串</td></tr>
+        <tr><td class="mono">SitCalibrator.isFinished</td><td>沒人呼叫（頁面直接看 <code>remainingSec() === 0</code>）</td></tr>
+        <tr><td class="mono">DataService.getCsrfToken</td><td>呼叫的地方被註解掉了</td></tr>
+        <tr><td class="mono">src/types/munkres-js.d.ts</td><td>替 <code>munkres-js</code> 補的型別，但套件沒安裝、也沒有 import</td></tr>
+        <tr><td class="mono">chair-round FlowPhase 'chair_place'</td><td>註解寫明「保留值，目前流程未使用」</td></tr>
+        <tr><td class="mono">網址參數 birthday · start=1</td><td>模式頁會帶上，但測驗頁沒有讀取</td></tr>
+        <tr><td class="mono">proxy.conf.json</td><td><code>angular.json</code> 沒有啟用它，裡面也沒有 <code>/fitness-api</code> 的轉發</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="improve">
+  <h2><span class="n">07</span>可以改進的地方</h2>
+  <p>依影響程度排序，前兩項建議優先確認。</p>
+
+  <div class="issues">
+    <div class="issue sev-high">
+      <div class="sev">高</div>
+      <div class="body">
+        <h3>正式環境會略過登入檢查</h3>
+        <p><code>environment.prod.ts</code> 的 <code>loginState</code> 是 <code>true</code>，註解寫「正式環境時這個欄位不影響」，但真實的 <code>AuthService.getUser()</code> 和 <code>isLogined()</code> 一看到 <code>loginState === true</code> 就直接回傳假的 Mock User，不會去問後端。結果是所有人都被當成已登入，<code>/chair-round</code> 的 AuthGuard 也形同虛設。如果這不是刻意的暫時設定，改成 <code>null</code> 即可。</p>
+        <p class="where">core/services/auth.service.ts:24、:83 · environments/environment.prod.ts:8</p>
+      </div>
+    </div>
+
+    <div class="issue sev-high">
+      <div class="sev">高</div>
+      <div class="body">
+        <h3>送出失敗的成績永遠不會補送</h3>
+        <p>坐立、抬膝、單腳站立在上傳失敗時，會把成績存到 localStorage（<code>sitstand_pending_summary</code>、<code>step_in_place_pending</code>、<code>single_leg_pending_summary</code>），但整個專案沒有任何地方讀回來重送。而且每次只存一筆，下一次失敗就會蓋掉前一筆。建議在 App 啟動或登入後檢查並補送，並改成存陣列。</p>
+        <p class="where">sit-stand.page.ts:664 · step.page.ts:635 · single-leg.page.ts:623</p>
+      </div>
+    </div>
+
+    <div class="issue sev-mid">
+      <div class="sev">中</div>
+      <div class="body">
+        <h3>年齡固定是 30 歲</h3>
+        <p><code>SitStandPage.readModeAndProfile()</code> 把年齡寫死為 30，再送給 LLM 產生建議。實際受測者都是 65 歲以上，建議內容可能不貼切。ProfileService 已經有生日，可以直接算出年齡。</p>
+        <p class="where">sit-stand.page.ts:201</p>
+      </div>
+    </div>
+
+    <div class="issue sev-mid">
+      <div class="sev">中</div>
+      <div class="body">
+        <h3>年齡檢查只用年份相減</h3>
+        <p>模式頁用「今年 − 出生年」判斷是否滿 65 歲，還沒過生日的人會多算一歲，64 歲也可能通過。日期下拉選單也固定 1–31 日，可以選到 2 月 31 日。</p>
+        <p class="where">pages/mode/mode.page.ts · getAgeBandFromBirthday()</p>
+      </div>
+    </div>
+
+    <div class="issue sev-mid">
+      <div class="sev">中</div>
+      <div class="body">
+        <h3>測驗頁沒有路由守衛，開發時也直連真實後端</h3>
+        <p>登入和年齡只在 <code>/mode</code> 檢查，直接打開 <code>/sit-stand</code> 等網址可以跳過。另外 <code>environment.ts</code> 的 <code>production</code> 是 <code>true</code>，<code>npm start</code> 也會注入真實的 Data 服務；本機又沒有 <code>/fitness-api</code> 的 proxy，上傳必定失敗。</p>
+        <p class="where">app/app.routes.ts · environments/environment.ts:4 · proxy.conf.json</p>
+      </div>
+    </div>
+
+    <div class="issue sev-mid">
+      <div class="sev">中</div>
+      <div class="body">
+        <h3>示範影片太大</h3>
+        <p>介紹頁的 3 支影片合計約 147 MB，手機用行動網路開啟會很久。轉成 720p H.264 通常可以降到每支幾 MB。</p>
+        <p class="where">assets/椅子坐站運動.mp4 · 踏步.mp4 · 單腳.mp4</p>
+      </div>
+    </div>
+
+    <div class="issue sev-low">
+      <div class="sev">低</div>
+      <div class="body">
+        <h3>同一份 JSON 重複下載</h3>
+        <p><code>fitness_standards.json</code> 會被 ProfileService、FitnessStandardsService 和每個測驗頁各自下載；<code>coach_template.json</code> 也同時被 CoachScoreService 和測驗頁下載。可以集中到一個有快取的服務裡。</p>
+      </div>
+    </div>
+
+    <div class="issue sev-low">
+      <div class="sev">低</div>
+      <div class="body">
+        <h3>三個測驗頁有大量重複程式碼</h3>
+        <p>讀取模式與受測者資料、載入 JSON、結束時上傳和存檔，這幾段在三個測驗頁幾乎一樣。抬膝和單腳站立已經改用 <code>exercises/shared/report/exercise-profile.ts</code>，坐立頁還是自己寫一份，可以統一。</p>
+      </div>
+    </div>
+
+    <div class="issue sev-low">
+      <div class="sev">低</div>
+      <div class="body">
+        <h3>頁面裡還有寫死的語音文字</h3>
+        <p>AGENTS.md 規定參數放在 <code>*.config.ts</code>，但 <code>sit-stand.page.ts</code> 還有幾句語音直接寫在程式裡，例如「距離良好，請坐下保持不動…」、「開始運動。」、「受測者離開畫面，請重新點選。」。可以搬到 <code>SIT_STAND_CONFIG.voice</code>。</p>
+        <p class="where">sit-stand.page.ts:349、444、451、526、566</p>
+      </div>
+    </div>
+
+    <div class="issue sev-low">
+      <div class="sev">低</div>
+      <div class="body">
+        <h3>核心演算法沒有測試</h3>
+        <p>全專案 11 個 spec，<code>exercises/</code> 底下只有椅子繞物頁一個。<code>RepCounter</code>、<code>SitCalibrator</code>、<code>pose-utils</code> 都是不依賴 Angular 的純邏輯，最容易寫測試，也最值得保護。</p>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- ============ 8 ============ -->
+<section id="extra">
+  <h2><span class="n">08</span>資料庫選擇</h2>
+  <p>PostgreSQL 是開源的關聯式資料庫，資料存成一張張表格，用 SQL 查詢。這一章是<strong>規劃</strong>，不是現有程式碼：目前成績只 POST 到 <code>/fitness-api</code>，失敗就存在 localStorage。改用 PostgreSQL 之後，成績可以長期保存，也能查歷史、做進步趨勢。</p>
+
+  <h3>為什麼適合這個 App</h3>
+  <div class="grid2">
+    <div class="note"><h3>資料本來就有關聯</h3><p>一個使用者有多次測驗，一次測驗有多下評分，剛好對應 <code>users → test_sessions → rep_scores</code> 三張表，用外鍵串起來。</p></div>
+    <div class="note"><h3>JSONB 欄位</h3><p>每一下的評分細節（角度、時間、教練分數）格式可能會變，可以整包存成 JSONB，不必每次改欄位，之後也能查詢裡面的值。</p></div>
+    <div class="note"><h3>交易（transaction）可靠</h3><p>一次測驗的摘要和每一下的分數一起寫入，中途失敗就全部取消，不會只存到一半。</p></div>
+    <div class="note"><h3>免費、生態成熟</h3><p>Node、Python、.NET、Java 都有成熟的連線套件和 ORM。</p></div>
+  </div>
+
+  <h3>前端不能直接連資料庫</h3>
+  <p>Ionic / Angular App 跑在使用者的瀏覽器裡，直接連資料庫會讓帳號密碼曝光。App 只呼叫 API，查詢資料庫和檢查登入都在後端做。</p>
+  <div class="fig">
+<pre class="mermaid">
+flowchart LR
+  A["Ionic App<br/>瀏覽器 / 手機"] -->|"HTTPS + 登入 token"| B["後端 API<br/>/fitness-api"]
+  B -->|"SQL（參數化查詢）"| C[("PostgreSQL<br/>users · test_sessions · rep_scores")]
+</pre>
+  </div>
+
+  <h3>建議的工具組合</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>用途</th><th>Node.js</th><th>Python</th></tr></thead>
+      <tbody>
+        <tr><td>後端框架</td><td class="mono">Express / NestJS</td><td class="mono">FastAPI</td></tr>
+        <tr><td>連 PostgreSQL</td><td class="mono">pg / Prisma</td><td class="mono">SQLAlchemy / asyncpg</td></tr>
+        <tr><td>密碼雜湊</td><td class="mono">bcrypt</td><td class="mono">passlib[bcrypt]</td></tr>
+        <tr><td>JWT 登入驗證</td><td class="mono">jsonwebtoken</td><td class="mono">python-jose</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="cap">如果後端還沒決定，NestJS 的寫法跟 Angular 很像（裝飾器、依賴注入），上手比較快。</p>
+</section>
+
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function(){
+  if (typeof mermaid === 'undefined') return;
+  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: true, securityLevel: 'strict', theme: dark ? 'dark' : 'neutral',
+    fontFamily: getComputedStyle(document.body).fontFamily });
+})();
+</script>
+<!-- 網頁塗鴉工具（web-canva） -->
+<script src="doodle.js"></script>
+</body>
+</html>
