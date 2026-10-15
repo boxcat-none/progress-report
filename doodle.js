@@ -28,7 +28,8 @@
  *   anchor           null                       想讓塗鴉跟著某個容器縮放時，指定它的 CSS 選擇器
  *   autoHide         5000                       工具列多久沒用就自動收起（毫秒），0 = 不收起
  *                                               收起後：電腦把滑鼠移到畫面上緣、iPad 從上緣往下滑，
- *                                               會出現「▼ 工具列」提示，點一下就拉出來
+ *                                               會出現「▼ 工具列」提示，點一下（或 iPad 再下滑一次）就拉出來；
+ *                                               在工具列上往上滑可以馬上收起
  *   loadedMessage    '✅ 畫布工具已載入'         網頁載入時在工具列顯示 3 秒的提示，'' = 不顯示
  *
  * data-* 屬性的寫法：data-initial-tool="pen"、data-scroll-container="#content"、data-save="false"、
@@ -75,7 +76,7 @@
     padding: 6px 18px 7px; border: none; border-radius: 0 0 12px 12px;
     background: #2563eb; color: #fff; font: 600 13px system-ui, -apple-system, "Microsoft JhengHei", sans-serif;
     box-shadow: 0 4px 12px rgba(0,0,0,.2); cursor: pointer;
-    touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none;
+    touch-action: none; -webkit-tap-highlight-color: transparent; user-select: none;
   }
   #wd-handle:not(.wd-show) { box-shadow: none; }   /* 藏起來時陰影會露出一條線，一起拿掉 */
   #wd-handle.wd-show { transform: translate(-50%, 0); }
@@ -102,7 +103,8 @@
   #wd-toolbar label { font-size: 13px; display: flex; align-items: center; gap: 4px; }
 
   /* 觸控裝置 (iPad)：按鈕放大、避免雙擊縮放與點擊閃色 */
-  #wd-toolbar { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  /* touch-action: none：在工具列上滑動不會捲到後面的網頁（上滑收起才判斷得到），也不會雙擊縮放 */
+  #wd-toolbar { touch-action: none; -webkit-tap-highlight-color: transparent; }
   @media (pointer: coarse) {
     #wd-toolbar button { padding: 9px 13px; font-size: 16px; }
     #wd-toolbar select { padding: 8px; font-size: 15px; }
@@ -1155,7 +1157,8 @@
     // ---------- 自動收起工具列 + 下拉提示 ----------
     // 工具列 opts.autoHide 毫秒沒有被使用 → 滑出畫面。要叫回來：
     //   電腦：滑鼠移到畫面上緣（工具列在下方時是下緣）→ 出現「▼ 工具列」提示 → 點一下
-    //   iPad：手指 / Pencil 從上緣往下滑 → 出現提示 → 點一下
+    //   iPad：手指 / Pencil 從上緣往下滑 → 出現提示 → 點一下，或再往下滑一次
+    // 想自己收起：在工具列上往上滑（滑鼠是按住往上拖）
     const atBottom = opts.position === 'bottom';
     const handleEl = document.createElement('button');
     handleEl.id = 'wd-handle';
@@ -1165,10 +1168,13 @@
     if (atBottom) handleEl.classList.add('wd-bottom');
     document.body.appendChild(handleEl);
 
-    const EDGE = 40;             // 邊緣感應區（像素）
+    const EDGE = 40;             // 滑鼠：邊緣感應區（像素）
+    const EDGE_TOUCH = 70;       // 手指 / Pencil：邊緣感應區放大一點，比較好拉
+    const SWIPE_DIST = 24;       // 滑多遠算一次「下拉 / 上滑」
     let idleTimer = null, handleTimer = null, hovering = false;
     const isToolbarHidden = () => toolbarEl.classList.contains('wd-autohidden');
-    const inEdge = y => atBottom ? y >= innerHeight - EDGE : y <= EDGE;
+    const isHandleShown = () => handleEl.classList.contains('wd-show');
+    const inEdge = (y, zone = EDGE) => atBottom ? y >= innerHeight - zone : y <= zone;
 
     function hideToolbar() {
       if (hovering) { bumpIdle(); return; }      // 滑鼠還停在工具列上 → 晚點再說
@@ -1188,7 +1194,7 @@
       if (!isToolbarHidden()) return;
       handleEl.classList.add('wd-show');
       clearTimeout(handleTimer);
-      handleTimer = setTimeout(hideHandle, 3000);   // 沒點就自己縮回去
+      handleTimer = setTimeout(hideHandle, 4000);   // 沒點就自己縮回去
     }
     function hideHandle() {
       clearTimeout(handleTimer);
@@ -1203,28 +1209,91 @@
 
     // 電腦：滑鼠靠近邊緣就出現提示，離開邊緣一段距離就收回
     addEventListener('pointermove', e => {
-      if (e.pointerType !== 'mouse' || !isToolbarHidden() || swipe) return;
+      if (e.pointerType !== 'mouse' || !isToolbarHidden()) return;
       if (inEdge(e.clientY)) showHandle();
       else if (atBottom ? e.clientY < innerHeight - EDGE * 3 : e.clientY > EDGE * 3) hideHandle();
     }, { capture: true, passive: true });
 
-    // iPad：手指 / Pencil 從邊緣往內滑 → 出現提示
-    // 從邊緣開始的觸控先攔下來，不會畫出線，也不會觸發網頁的點擊
-    let swipe = null;
+    // ---------- iPad：從邊緣往內滑 ----------
+    //   第一次下拉 → 出現「▼ 工具列」提示；提示還在時再下拉一次 → 直接拉出工具列（也可以點提示）
+    // 用 touch 事件判斷：iPad 開始原生捲動後，pointer 事件會被 pointercancel 中斷，
+    // touch 事件則會一直送到手指離開，所以比較拉得到。
+    let edgeSwipe = null;
+    addEventListener('touchstart', e => {
+      edgeSwipe = null;
+      if (!isToolbarHidden() || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      if (inEdge(t.clientY, EDGE_TOUCH)) edgeSwipe = { id: t.identifier, y0: t.clientY, done: false };
+    }, { capture: true, passive: true });
+    addEventListener('touchmove', e => {
+      if (!edgeSwipe || edgeSwipe.done) return;
+      const t = [...e.changedTouches].find(t => t.identifier === edgeSwipe.id);
+      if (!t) return;
+      const dist = atBottom ? edgeSwipe.y0 - t.clientY : t.clientY - edgeSwipe.y0;
+      if (dist > SWIPE_DIST) {
+        edgeSwipe.done = true;               // 一次滑動只算一次
+        if (isHandleShown()) showToolbar();  // 第二次下拉：直接拉出工具列
+        else showHandle();                   // 第一次下拉：先出現提示
+      }
+    }, { capture: true, passive: true });
+    const endEdgeSwipe = () => { edgeSwipe = null; };
+    addEventListener('touchend', endEdgeSwipe, { capture: true, passive: true });
+    addEventListener('touchcancel', endEdgeSwipe, { capture: true, passive: true });
+
+    // 工具列藏起來時，從邊緣開始的觸控 / 筆不要畫出線，也不要觸發網頁的點擊
+    let edgePointer = null;
     addEventListener('pointerdown', e => {
-      if (e.pointerType === 'mouse' || !isToolbarHidden() || !inEdge(e.clientY) || e.target === handleEl) return;
-      swipe = { id: e.pointerId, y0: e.clientY };
+      if (e.pointerType === 'mouse' || !isToolbarHidden() || e.target === handleEl) return;
+      if (!inEdge(e.clientY, EDGE_TOUCH)) return;
+      edgePointer = e.pointerId;
       e.stopPropagation();
     }, { capture: true });
+    addEventListener('pointermove', e => { if (e.pointerId === edgePointer) e.stopPropagation(); }, { capture: true });
+    const endEdgePointer = e => { if (e.pointerId === edgePointer) { edgePointer = null; e.stopPropagation(); } };
+    addEventListener('pointerup', endEdgePointer, { capture: true });
+    addEventListener('pointercancel', endEdgePointer, { capture: true });
+
+    // ---------- 在工具列上往上滑（工具列在下方時往下滑）→ 收起工具列 ----------
+    // 手指 / Pencil 用 touch 事件；滑鼠則是按住工具列往上拖
+    const SKIP_SWIPE = 'input[type=range], select';   // 拖滑桿、開下拉選單時不算
+    function swipeHide() {
+      hovering = false;
+      hideToolbar();
+      hideHandle();
+      // 滑完放開時，手指下面剛好有按鈕的話別讓它被點到
+      const block = ev => { ev.stopPropagation(); ev.preventDefault(); };
+      toolbarEl.addEventListener('click', block, { capture: true });
+      setTimeout(() => toolbarEl.removeEventListener('click', block, { capture: true }), 400);
+    }
+    const awayDist = (y0, y) => atBottom ? y - y0 : y0 - y;   // 往「收起方向」滑了多遠
+
+    let barSwipe = null;
+    toolbarEl.addEventListener('touchstart', e => {
+      barSwipe = null;
+      if (e.touches.length !== 1 || e.target.closest(SKIP_SWIPE)) return;
+      const t = e.touches[0];
+      barSwipe = { id: t.identifier, x0: t.clientX, y0: t.clientY };
+    }, { passive: true });
+    toolbarEl.addEventListener('touchmove', e => {
+      if (!barSwipe) return;
+      const t = [...e.changedTouches].find(t => t.identifier === barSwipe.id);
+      if (!t) return;
+      const dy = awayDist(barSwipe.y0, t.clientY), dx = Math.abs(t.clientX - barSwipe.x0);
+      if (dy > SWIPE_DIST && dy > dx) { barSwipe = null; swipeHide(); }
+    }, { passive: true });
+    toolbarEl.addEventListener('touchend', () => { barSwipe = null; }, { passive: true });
+
+    let barDrag = null;
+    toolbarEl.addEventListener('pointerdown', e => {
+      barDrag = e.pointerType === 'mouse' && !e.target.closest(SKIP_SWIPE) ? { x0: e.clientX, y0: e.clientY } : null;
+    });
     addEventListener('pointermove', e => {
-      if (!swipe || e.pointerId !== swipe.id) return;
-      const dist = atBottom ? swipe.y0 - e.clientY : e.clientY - swipe.y0;
-      if (dist > 30) showHandle();
-      e.stopPropagation();
-    }, { capture: true });
-    const endSwipe = e => { if (swipe && e.pointerId === swipe.id) { swipe = null; e.stopPropagation(); } };
-    addEventListener('pointerup', endSwipe, { capture: true });
-    addEventListener('pointercancel', endSwipe, { capture: true });
+      if (!barDrag || e.pointerType !== 'mouse') return;
+      if (!(e.buttons & 1)) { barDrag = null; return; }
+      const dy = awayDist(barDrag.y0, e.clientY), dx = Math.abs(e.clientX - barDrag.x0);
+      if (dy > SWIPE_DIST && dy > dx) { barDrag = null; swipeHide(); }
+    }, { capture: true, passive: true });
+    addEventListener('pointerup', () => { barDrag = null; }, { capture: true, passive: true });
 
     resize();
     setTool(['none', 'pen', 'eraser', 'select'].includes(opts.initialTool) ? opts.initialTool : 'none');
